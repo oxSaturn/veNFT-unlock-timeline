@@ -1,0 +1,234 @@
+---
+import Layout from '../layouts/Layout.astro'
+
+// json files to import
+import veFlow from '../data/veFlow.json'
+import veCHR from '../data/veCHR.json'
+import veEqual from '../data/veEqual.json'
+import veRAM from '../data/veRAM.json'
+import veVelo from '../data/veVelo.json'
+
+// astro will build all the paths
+export function getStaticPaths() {
+  return [
+    { params: { path: 'veFlow' } },
+    { params: { path: 'veCHR' } },
+    { params: { path: 'veEqual' } },
+    { params: { path: 'veRAM' } },
+    { params: { path: 'veVelo' } },
+  ]
+}
+
+let d = {}
+let brandColor = '#26a69a'
+
+// typing bug here, see https://github.com/withastro/language-tools/issues/558
+// annoying, but no harm at the moment
+const { path } = Astro.params
+
+if (path === 'veFlow') {
+  d = veFlow
+  brandColor = '#06d3d7'
+} else if (path === 'veCHR') {
+  d = veCHR
+  brandColor = '#9e5bf1'
+} else if (path === 'veEqual') {
+  d = veEqual
+  brandColor = '#0564d7'
+} else if (path === 'veRAM') {
+  d = veRAM
+  brandColor = '#DDB557'
+} else if (path === 'veVelo') {
+  d = veVelo
+  brandColor = '#4862D8'
+}
+
+const times = Object.keys(d).map((key) => Number(key))
+const min = Math.min(...times)
+const max = Math.max(...times)
+// generate all thursday date between min and max
+// it's when the epoch begins
+const thursdays = []
+for (let i = min; i <= max; i += 604800) {
+  // 1 week = 604800 seconds
+  thursdays.push(i)
+}
+d = thursdays.map((key) => {
+  const value = d[key as keyof typeof d] as { amount: string }[]
+  if (value) {
+    return {
+      time: Number(key),
+      value: value.reduce((acc, cur) => acc + Number(cur.amount), 0),
+    }
+  }
+  return {
+    time: key,
+    value: 0,
+  }
+})
+---
+
+<style>
+  .shown {
+    display: none;
+  }
+  @media only screen and (hover: none) and (pointer: coarse) {
+    .shown {
+      display: block;
+    }
+  }
+</style>
+<Layout title={`${path} Unlock Timeline`}>
+  <h1
+    class="text-center text-2xl my-10 flex justify-center items-center space-x-2"
+  >
+    <a href="/" title="Visit homepage"
+      ><img class="w-[48px]" src={`/${path}.png`} alt={path} /></a
+    >
+    <span>{path} Unlock Timeline</span>
+  </h1>
+  <p class="text-center shown">Long press the chart to see data</p>
+  <div
+    id="container"
+    class="relative w-full xl:w-10/12 mx-auto h-[65vh]"
+    data-nfts={JSON.stringify(d)}
+    data-brand={brandColor}
+    data-path={path}
+  >
+    <div
+      class="absolute z-10 hidden border p-2 rounded-sm bg-white"
+      style={`border-color: ${brandColor}`}
+      id="tooltip"
+    >
+    </div>
+  </div>
+
+  <script>
+    import { createChart, ColorType } from 'lightweight-charts'
+    import type {
+      HistogramData,
+      MouseEventParams,
+      AreaData,
+    } from 'lightweight-charts'
+
+    const container = document.getElementById('container')!
+    const toolTip = document.getElementById('tooltip')!
+
+    const data = container.dataset.nfts!
+    const path = container.dataset.path!
+    const brandColor = container.dataset.brand!
+
+    const chart = createChart(container, {
+      layout: {
+        textColor: 'black',
+        background: { type: ColorType.Solid, color: 'white' },
+      },
+      autoSize: true,
+      rightPriceScale: {
+        scaleMargins: {
+          top: 0.2, // percent
+          bottom: 0,
+        },
+      },
+      crosshair: {
+        // hide the horizontal crosshair line
+        horzLine: {
+          visible: false,
+          labelVisible: false,
+        },
+      },
+      grid: {
+        horzLines: {
+          visible: false,
+          color: '#eee',
+        },
+        vertLines: {
+          color: '#ffffff',
+        },
+      },
+      handleScroll: true,
+    })
+    const histogramSeries = chart.addHistogramSeries({
+      color: brandColor,
+      priceFormat: { type: 'volume' },
+    })
+
+    const areaLineColor = '#33D778'
+    const areaSeries = chart.addAreaSeries({
+      crosshairMarkerVisible: false,
+      lineColor: areaLineColor,
+    })
+
+    const parsedData: Array<HistogramData> = JSON.parse(data)
+    histogramSeries.setData(parsedData)
+
+    // transform parsedData into accumulated data
+    const accumulatedData = parsedData.reduce((acc, cur) => {
+      const last = acc[acc.length - 1]
+      const value = cur.value + (last ? last.value : 0)
+      return [...acc, { ...cur, value }]
+    }, [] as typeof parsedData)
+
+    areaSeries.setData(accumulatedData)
+
+    const toolTipWidth = 80
+    const toolTipHeight = 80
+    const toolTipMargin = 15
+    // update tooltip
+    chart.subscribeCrosshairMove((param: MouseEventParams) => {
+      if (
+        param.point === undefined ||
+        !param.time ||
+        param.point.x < 0 ||
+        param.point.x > container.clientWidth ||
+        param.point.y < 0 ||
+        param.point.y > container.clientHeight
+      ) {
+        toolTip.style.display = 'none'
+      } else {
+        const dateStr = param.time
+        toolTip.style.display = 'block'
+        const areaData = param.seriesData.get(areaSeries) as AreaData
+        const areaPrice = areaData.value
+        const barData = param.seriesData.get(histogramSeries) as HistogramData
+        const barPrice = barData.value
+        toolTip.innerHTML = `<div>${path}: <span style="color: ${brandColor}">${Intl.NumberFormat(
+          'en-US',
+          {
+            notation: 'compact',
+            maximumFractionDigits: 2,
+          }
+        ).format(
+          barPrice
+        )}</span></div><div style="font-size: 20px; margin: 4px 0px; color: ${areaLineColor}">
+			${Intl.NumberFormat('en-US', {
+        notation: 'compact',
+        maximumFractionDigits: 2,
+      }).format(areaPrice)} locked in total
+			</div><div>
+			${new Date(Number(dateStr) * 1000).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        weekday: 'short',
+      })}
+			</div>`
+
+        const y = param.point.y
+        let left = param.point.x + toolTipMargin
+        if (left > container.clientWidth - toolTipWidth) {
+          left = param.point.x - toolTipMargin - toolTipWidth
+        }
+
+        let top = y + toolTipMargin
+        if (top > container.clientHeight - toolTipHeight) {
+          top = y - toolTipHeight - toolTipMargin
+        }
+        toolTip.style.left = left + 'px'
+        toolTip.style.top = top + 'px'
+      }
+    })
+
+    chart.timeScale().fitContent()
+  </script>
+</Layout>
