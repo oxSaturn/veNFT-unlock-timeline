@@ -6,4 +6,5 @@ import tailwind from '@astrojs/tailwind'
 export default defineConfig({
   integrations: [tailwind()],
   base: '/veNFT-unlock-timeline',
+  site: 'https://oxsaturn.github.io',
 })
