@@ -13,11 +13,11 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "ve:Equal": "node src/veEqual.mjs",
-    "ve:RAM": "node src/veRAM.mjs",
-    "ve:CHR": "node src/veCHR.mjs",
-    "ve:Flow": "node src/veFlow.mjs",
-    "ve:Velo": "node src/veVelo.mjs"
+    "ve:Equal": "node scripts/veEqual.mjs",
+    "ve:RAM": "node scripts/veRAM.mjs",
+    "ve:CHR": "node scripts/veCHR.mjs",
+    "ve:Flow": "node scripts/veFlow.mjs",
+    "ve:Velo": "node scripts/veVelo.mjs"
   },
   "dependencies": {
     "@astrojs/tailwind": "^3.1.3",
